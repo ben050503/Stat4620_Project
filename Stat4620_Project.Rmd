@@ -1,0 +1,98 @@
+---
+title: "Stat4620_Project"
+author: "Project Group 1"
+date: "2024-11-20"
+output: pdf_document
+---
+
+```{r}
+library(ISLR)
+library(pls)
+library(ggplot2)
+library(glmnet)
+library(tidyverse)
+library(broom)
+library(dplyr)
+library(MASS)
+
+train_data = read.csv("train.csv")
+test_data = read.csv("test_new.csv")
+```
+
+
+#Part I: Exploratory Data Analysis
+
+The AMES Housing data set contains information regarding to house prices and the characteristics of them. Variables ranges from numerical and categorical types of property locations, rooms and house furnishings.
+
+```{r}
+# Check missing values for each column
+missing_counts <- colSums(is.na(train_data))
+missing_features <- missing_counts[missing_counts > 0]
+missing_features
+```
+
+There is one variable (LotFrontage) that contained a lot of actual missing values and thus we will drop it. We will also drop the ID column in the data set as it's used as an identifier and has no useful information. Upon analyzing the remaining missing features with NAs, we realized those NAs represent an actual category and are not missing data values, so we will keep them in the dataset for now.
+
+```{r}
+train_data = train_data[, !(names(train_data) %in% c("Id", "LotFrontage"))]
+```
+
+We'll also drop categorical variables that don't provide a good split of the data space. Doing this will further simplify the number of features without losing any important patterns or information. Kaggle provides us a comprehensive view of the percentage break down of the buckets in the categorical variables. We'll drop variables that have buckets that exceed 85% of the observation.
+
+```{r}
+train_data = train_data[, !(names(train_data) %in% c("Street", "Alley", "PoolQC", "MiscFeature", "LandContour", "Utilities", "LandSlope","Condition1","Condition2","RoofMatl","ExterCond","BsmtCond","BsmtFinType2","Heating","CentralAir","Electrical","Functional","GarageQual","GarageCond","PavedDrive", "SaleType"))]
+```
+
+We will then fill in the NAs for the remaining variables with missing values, replacing NAs in categorical variables with "None". There are two remaining continuous variables with missing values: GarageYrBuilt and MasVnrArea. For GarageYrBuilt, we will replace the NAs with the median value in that variable, but for "MasVnrArea", we will replace with the value 0 to correspond with the 8 missing values of categorical variable "MasVnrType". 
+
+```{r}
+summary(train_data)
+
+missing_counts <- colSums(is.na(train_data))
+missing_features <- missing_counts[missing_counts > 0]
+missing_features
+
+median_value <- median(train_data$GarageYrBlt, na.rm = TRUE)
+train_data$GarageYrBlt[is.na(train_data$GarageYrBlt)] <- median_value
+train_data$MasVnrArea[is.na(train_data$MasVnrArea)] <- 0
+
+train_data[is.na(train_data)] <- "None"
+```
+
+Placeholder
+
+```{r}
+# Correlation matrix for numeric features
+train_data_numeric <- train_data[sapply(train_data, is.numeric)]
+cor_matrix <- cor(train_data_numeric)
+
+#subset(as.data.frame.table(cor_matrix), abs(Freq) < 1 & abs(Freq) > 0.75)
+
+cor_sal <- cor_matrix[, "SalePrice"]
+cor_sal
+
+# All variables not highly correlated with SalePrice
+names(cor_sal[abs(cor_sal) < 0.5])
+```
+
+We will remove all the continuous variables that are not highly correlated with our response variable, SalePrice, based on the correlation matrix above. Those continuous variables with a correlation value higher than 0.5 or lower than -0.5 will remain in our dataset.
+
+```{r}
+train_data = train_data[, !(names(train_data) %in% c("MSSubClass", "LotArea", "OverallCond", "BsmtFinSF1", "BsmtFinSF2", "BsmtUnfSF", "X2ndFlrSF", "LowQualFinSF", "BsmtFullBath", "BsmtHalfBath", "HalfBath", "BedroomAbvGr", "KitchenAbvGr", "Fireplaces", "WoodDeckSF", "OpenPorchSF", "EnclosedPorch", "X3SsnPorch", "ScreenPorch", "PoolArea", "MiscVal", "MoSold", "YrSold"))]
+```
+
+Placeholder
+
+```{r}
+library(randomForest)
+
+summary(train_data)
+train_data_categorical <- train_data[sapply(train_data, is.character)]
+
+train_data_categorical <- cbind(train_data_categorical, train_data$SalePrice)
+names(train_data_categorical)[names(train_data_categorical) == "train_data$SalePrice"] <- "SalePrice"
+
+rf_model <- randomForest(SalePrice ~ ., data = train_data_categorical, ntree = 100)
+importance(rf_model)
+```
+
