@@ -1,0 +1,194 @@
+---
+title: "Stat4620_Project"
+author: "Project Group 1"
+date: "2024-11-20"
+output: pdf_document
+---
+
+```{r}
+library(ISLR)
+library(pls)
+library(ggplot2)
+library(glmnet)
+library(tidyverse)
+library(broom)
+library(dplyr)
+library(MASS)
+library(corrplot)
+library(randomForest)
+library(caret)
+
+train_data = read.csv("train.csv")
+test_data = read.csv("test_new.csv")
+```
+
+
+#Part I: Exploratory Data Analysis
+
+The AMES Housing data set contains information regarding to house prices and the characteristics of them. Variables ranges from numerical and categorical types of property locations, rooms and house furnishings.
+
+```{r}
+# Check missing values for each column
+missing_counts <- colSums(is.na(train_data))
+missing_features <- missing_counts[missing_counts > 0]
+missing_features
+```
+
+There is one variable (LotFrontage) that contained a lot of actual missing values and thus we will drop it. We will also drop the ID column in the data set as it's used as an identifier and has no useful information. Upon analyzing the remaining missing features with NAs, we realized those NAs represent an actual category and are not missing data values, so we will keep them in the dataset for now.
+
+```{r}
+train_data = train_data[, !(names(train_data) %in% c("Id", "LotFrontage"))]
+```
+
+We'll also drop categorical variables that don't provide a good split of the data space. Doing this will further simplify the number of features without losing any important patterns or information. Kaggle provides us a comprehensive view of the percentage break down of the buckets in the categorical variables. We'll drop variables that have buckets that exceed 85% of the observations.
+
+```{r}
+train_data = train_data[, !(names(train_data) %in% c("Street", "Alley", "PoolQC", "MiscFeature", "LandContour", "Utilities", "LandSlope","Condition1","Condition2","RoofMatl","ExterCond","BsmtCond","BsmtFinType2","Heating","CentralAir","Electrical","Functional","GarageQual","GarageCond","PavedDrive", "SaleType"))]
+```
+
+We will then fill in the NAs for the remaining variables with missing values, replacing NAs in categorical variables with "None". There are two remaining continuous variables with missing values: GarageYrBuilt and MasVnrArea. For GarageYrBuilt, we will replace the NAs with the median value in that variable, but for "MasVnrArea", we will replace with the value 0 to correspond with the 8 missing values of categorical variable "MasVnrType". 
+
+```{r}
+summary(train_data)
+
+missing_counts <- colSums(is.na(train_data))
+missing_features <- missing_counts[missing_counts > 0]
+missing_features
+
+median_value <- median(train_data$GarageYrBlt, na.rm = TRUE)
+train_data$GarageYrBlt[is.na(train_data$GarageYrBlt)] <- median_value
+train_data$MasVnrArea[is.na(train_data$MasVnrArea)] <- 0
+
+train_data[is.na(train_data)] <- "None"
+
+colSums(is.na(train_data))#there are now no NA's
+```
+
+Placeholder
+
+```{r}
+# Correlation matrix for numeric features
+train_data_numeric <- train_data[sapply(train_data, is.numeric)]
+cor_matrix <- cor(train_data_numeric)
+
+#subset(as.data.frame.table(cor_matrix), abs(Freq) < 1 & abs(Freq) > 0.75)
+
+cor_sal <- cor_matrix[, "SalePrice"]
+cor_sal
+
+# All variables not highly correlated with SalePrice
+names(cor_sal[abs(cor_sal) < 0.5])
+```
+
+We will remove all the continuous variables that are not highly correlated with our response variable, SalePrice, based on the correlation matrix above. Those continuous variables with a correlation value higher than 0.5 or lower than -0.5 will remain in our dataset.
+
+```{r}
+train_data = train_data[, !(names(train_data) %in% c("MSSubClass", "LotArea", "OverallCond", "BsmtFinSF1", "BsmtFinSF2", "BsmtUnfSF", "X2ndFlrSF", "LowQualFinSF", "BsmtFullBath", "BsmtHalfBath", "HalfBath", "BedroomAbvGr", "KitchenAbvGr", "Fireplaces", "WoodDeckSF", "OpenPorchSF", "EnclosedPorch", "X3SsnPorch", "ScreenPorch", "PoolArea", "MiscVal", "MoSold", "YrSold"))]
+```
+
+We will now look at the correlation between all predictor variables to see if there are any two that are highly correlated. If two of them are highly correlated then we will remove the one that is least correlated with the response variable.
+
+```{r}
+# Create correlation plot
+corrplot(cor_matrix, method = "color", tl.cex = 0.5)
+
+# Print all relationships with 0.75 correlation or more
+subset(as.data.frame.table(cor_matrix), abs(Freq) < 1 & abs(Freq) > 0.75)
+```
+
+In the table above we can see that 4 of the predictor variables are highly correlated with another 4 variables so we will remove those, keeping the ones with higher correlation to the response.
+
+```{r}
+# Remove variables due to multicollinearity
+train_data = train_data[, !(names(train_data) %in% c("GarageYrBlt", "X1stFlrSF", "TotRmsAbvGrd", "GarageArea"))]
+```
+
+We will now look at all the categorical variables to see if they all have a unique distribution of SalePrice across different categories, deeming them useful.
+
+```{r}
+# List of all categorical variables
+categorical_vars <- c("MSZoning", "LotShape", "LotConfig", "Neighborhood", "BldgType", "HouseStyle", "RoofStyle", "Exterior1st", "Exterior2nd", "MasVnrType", "ExterQual", "Foundation","BsmtQual","BsmtExposure","BsmtFinType1","HeatingQC", "KitchenQual","FireplaceQu", "GarageType","GarageFinish", "Fence", "SaleCondition")
+
+# Generate bar plots for each categorical variable
+for (var in categorical_vars) {
+  ggplot(train_data, aes_string(x = var, y = "SalePrice")) +
+    geom_bar(stat = "summary", fun = "mean", fill = "steelblue") +
+    labs(title = paste("SalePrice by", var),
+         x = var, y = "Average SalePrice") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> p
+
+  print(p)
+}
+```
+
+We can see that for each categorical variable that the SalePrice is different across each category in each categorical variable which is good and tells us  that they will all be useful. 
+
+After cleaning our data and performing EDA we are going to fit a regression tree model to our data. We think this will give us the best results because regression trees tend to work well with both categorical variables, continuous variables, and high dimensionality. It is also easy to interpret regression trees.
+
+```{r}
+cv <- trainControl(method = "cv", number = 5)  # 5-fold cross-validation
+mtry_grid <- expand.grid(.mtry = c(15, 20, 25, 30)) # Tuning grid for mtry
+
+# Train the model using random forest with cross-validation
+set.seed(123)
+rf_cv_model <- train(SalePrice ~ .,data = train_data,method = "rf",trControl = cv,tuneGrid = mtry_grid,ntree = 500)
+print(rf_cv_model)
+```
+
+After running cross-validation to select the best value for mtry we can see that mtry=30 gives the best results. We will now fit the model with 500 trees and mtry=30
+
+```{r}
+set.seed(123)
+rf_model <- randomForest(SalePrice ~ .,data = train_data,ntree = 500, mtry = 30, importance = TRUE)
+print(rf_model)
+```
+
+After fitting the model we got an R^2 value of 0.8218 which is pretty good. 
+
+```{r}
+par(cex = 0.7)
+varImpPlot(rf_model, type = 1) # Plot variable importance
+```
+
+We can see that the most important variable is GrLiveArea (Above ground living area square feet) which makes sense because larger houses will cost more. We will now run the test data through the pre-processing and then evaluate it's performance with the model.
+
+```{r}
+#Pre-Processing on test_data
+test_data = test_data[, !(names(test_data) %in% c("Id", "LotFrontage", "Street", "Alley", "PoolQC", "MiscFeature", "LandContour", "Utilities", "LandSlope","Condition1","Condition2","RoofMatl","ExterCond","BsmtCond","BsmtFinType2","Heating","CentralAir","Electrical","Functional","GarageQual","GarageCond","PavedDrive", "SaleType", "GarageYrBlt", "X1stFlrSF", "TotRmsAbvGrd", "GarageArea", "MSSubClass", "LotArea", "OverallCond", "BsmtFinSF1", "BsmtFinSF2", "BsmtUnfSF", "X2ndFlrSF", "LowQualFinSF", "BsmtFullBath", "BsmtHalfBath", "HalfBath", "BedroomAbvGr", "KitchenAbvGr", "Fireplaces", "WoodDeckSF", "OpenPorchSF", "EnclosedPorch", "X3SsnPorch", "ScreenPorch", "PoolArea", "MiscVal", "MoSold", "YrSold"))]
+
+test_data$MasVnrArea[is.na(test_data$MasVnrArea)] <- 0
+test_data[is.na(test_data)] <- "None"
+```
+
+```{r}
+test_x = test_data[, !(names(test_data) == "SalePrice")] #predictors of test data
+test_y = test_data[, (names(test_data) == "SalePrice")] #response of test data
+
+predictions <- predict(rf_model, newdata = test_x) #predict sale price on test data
+
+rmse <- sqrt(mean((predictions - test_y)^2)) #get rmse of predictions
+cat("RMSE: ", rmse, "\n")
+```
+
+After running the test data through the model we can see that on average we are $26,306.08 off from the actual sale price.
+
+
+
+
+
+Placeholder
+
+```{r}
+library(randomForest)
+
+summary(train_data)
+train_data_categorical <- train_data[sapply(train_data, is.character)]
+
+train_data_categorical <- cbind(train_data_categorical, train_data$SalePrice)
+names(train_data_categorical)[names(train_data_categorical) == "train_data$SalePrice"] <- "SalePrice"
+
+rf_model <- randomForest(SalePrice ~ ., data = train_data_categorical, ntree = 100)
+importance(rf_model)
+```
+
