@@ -17,6 +17,7 @@ library(MASS)
 library(corrplot)
 library(randomForest)
 library(caret)
+library(gridExtra)
 
 train_data = read.csv("train.csv")
 test_data = read.csv("test_new.csv")
@@ -105,20 +106,29 @@ train_data = train_data[, !(names(train_data) %in% c("GarageYrBlt", "X1stFlrSF",
 
 We will now look at all the categorical variables to see if they all have a unique distribution of SalePrice across different categories, deeming them useful.
 
-```{r}
+```{r warning=FALSE}
 # List of all categorical variables
 categorical_vars <- c("MSZoning", "LotShape", "LotConfig", "Neighborhood", "BldgType", "HouseStyle", "RoofStyle", "Exterior1st", "Exterior2nd", "MasVnrType", "ExterQual", "Foundation","BsmtQual","BsmtExposure","BsmtFinType1","HeatingQC", "KitchenQual","FireplaceQu", "GarageType","GarageFinish", "Fence", "SaleCondition")
 
-# Generate bar plots for each categorical variable
+plot_list <- list()
+
+# Loop through categorical variables and store plots in the list
 for (var in categorical_vars) {
-  ggplot(train_data, aes_string(x = var, y = "SalePrice")) +
+  x <- ggplot(train_data, aes_string(x = var, y = "SalePrice")) +
     geom_bar(stat = "summary", fun = "mean", fill = "steelblue") +
     labs(title = paste("SalePrice by", var),
          x = var, y = "Average SalePrice") +
     theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) -> p
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-  print(p)
+  # Add the plot to the list
+  plot_list[[length(plot_list) + 1]] <- x
+}
+
+# Arrange and print the plots two at a time
+for (i in seq(1, length(plot_list), by = 2)) {
+  plots_to_print <- plot_list[i:min(i + 1, length(plot_list))]
+  grid.arrange(grobs = plots_to_print, ncol = 2)
 }
 ```
 
