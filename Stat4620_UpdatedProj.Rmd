@@ -159,7 +159,9 @@ par(cex = 0.7)
 varImpPlot(rf_model, type = 1) # Plot variable importance
 ```
 
-We can see that the most important variable is GrLiveArea (Above ground living area square feet) which makes sense because larger houses will cost more. We will now run the test data through the pre-processing and then evaluate it's performance with the model.
+We can see that the most important variable is `GrLiveArea` (Above ground living area square feet) which makes sense because larger houses will cost more. Along with that variable, `OverallQual` (Overall material and finish of the house) and `TotalBsmtSF` (Total square feet of the basement) are also very important to the model and separate themselves from the other variables. `TotalBsmtSF`is very similar to `GrLiveArea` and probably gives a similar value so that explains why it is so important and if the quality of the house is low then the price will also be lower. 
+
+We will now run the test data through the pre-processing and then evaluate it's performance with the model.
 
 ```{r}
 #Pre-Processing on test_data
