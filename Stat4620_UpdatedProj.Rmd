@@ -174,25 +174,26 @@ test_x = test_data[, !(names(test_data) == "SalePrice")] #predictors of test dat
 test_y = test_data[, (names(test_data) == "SalePrice")] #response of test data
 
 predictions <- predict(rf_model, newdata = test_x) #predict sale price on test data
+```
+
+```{r}
+#data drame of results
+results = data.frame(Actual = test_y, Predicted = predictions)
+
+# Scatterplot of actual vs predicted values
+ggplot(data = results, aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "solid") +
+  labs(title = "Actual vs Predicted Prices",
+       x = "Actual Price",
+       y = "Predicted Price") +
+  theme_minimal()
+```
+
+```{r}
 
 rmse <- sqrt(mean((predictions - test_y)^2)) #get rmse of predictions
 cat("RMSE: ", rmse, "\n")
 ```
 
 After running the test data through the model we can see that on average we are $26,306.08 off from the actual sale price.
-
-
-Placeholder for potential additional model validation and explanation.
-
-```{r}
-library(randomForest)
-
-summary(train_data)
-train_data_categorical <- train_data[sapply(train_data, is.character)]
-
-train_data_categorical <- cbind(train_data_categorical, train_data$SalePrice)
-names(train_data_categorical)[names(train_data_categorical) == "train_data$SalePrice"] <- "SalePrice"
-
-rf_model <- randomForest(SalePrice ~ ., data = train_data_categorical, ntree = 100)
-importance(rf_model)
-```
